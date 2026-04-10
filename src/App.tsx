@@ -352,16 +352,57 @@ const SKILLS: Skill[] = [
   { name: "C# / Blueprint", level: 75, icon: <Code2 className="w-5 h-5" />, caption: "기능 구현 및 프로토타이핑 가능" },
 ];
 
+// --- Supabase Content API ---
+const SUPABASE_CONTENT_API = 'https://bovxanwamgbhlubrndyl.supabase.co/functions/v1/content-api';
+
+let _contentCache: Record<string, any> | null = null;
+let _contentPromise: Promise<Record<string, any>> | null = null;
+
+const fetchAllContent = (): Promise<Record<string, any>> => {
+  if (_contentCache) return Promise.resolve(_contentCache);
+  if (_contentPromise) return _contentPromise;
+  _contentPromise = fetch(SUPABASE_CONTENT_API)
+    .then(res => res.json())
+    .then(data => {
+      _contentCache = data;
+      return data;
+    })
+    .catch(() => {
+      _contentCache = {};
+      return {};
+    });
+  return _contentPromise;
+};
+
+const saveContentToSupabase = async (key: string, value: any) => {
+  try {
+    await fetch(SUPABASE_CONTENT_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: '0000', key, value }),
+    });
+  } catch (e) {
+    console.error('Failed to save content:', e);
+  }
+};
+
 // --- Editable Content Hook ---
 const useEditableContent = (initialData: any, key: string) => {
-  const [data, setData] = useState(() => {
-    const saved = localStorage.getItem(key);
-    return saved ? JSON.parse(saved) : initialData;
-  });
+  const [data, setData] = useState(initialData);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    fetchAllContent().then(allContent => {
+      if (allContent[key] !== undefined) {
+        setData(allContent[key]);
+      }
+      setLoaded(true);
+    });
+  }, [key]);
 
   const updateData = (newData: any) => {
     setData(newData);
-    localStorage.setItem(key, JSON.stringify(newData));
+    saveContentToSupabase(key, newData);
   };
 
   return [data, updateData];
